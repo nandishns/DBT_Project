@@ -29,17 +29,6 @@ This project automates the listing of B2B software products , ensuring that new 
 ## System Design
 ![image](https://github.com/nandishns/DBT_Project/assets/92267208/c821512f-2577-43f3-960e-52a5238305e9)
 
-
-
-
-### Initial Setup
-
-Comprehensive scrapers are deployed initially to perform a deep crawl of targeted sources to populate the database with existing software products. BeautifulSoup is used for static content and Selenium for dynamic content.
-
-### Ongoing Operation
-
-Scheduled daily crawls update the database with new additions and changes, managed via cron jobs or Kubernetes schedulers.
-
 ### Data Streaming
 
 Extracted data is streamed in real-time into Kafka topics designed to segment the data efficiently:
