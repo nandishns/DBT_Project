@@ -24,19 +24,8 @@ TWITTER_PASSWORD=os.getenv("TWITTER_PASSWORD")
 
 
 def setup_webdriver():
-
-    # ChromeDriverManager().clear_cache()
-    chrome_options = Options()   
-    chrome_options.add_argument("--disable-popup-blocking")
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--window-size=1920x1080")
-    chrome_options.binary_location = "/usr/bin/google-chrome" 
-
     service = Service(ChromeDriverManager().install())
-    return webdriver.Chrome(service=service, options=chrome_options)
+    return webdriver.Chrome(service=service)
  
 
 def setup_kafka_producer():
@@ -47,7 +36,7 @@ def scrape_slashdot(producer):
     print("Scraping Slashdot")
     try:
         driver = setup_webdriver()
-        # driver.maximize_window()
+        driver.maximize_window()
         wait = WebDriverWait(driver, 10)
         driver.get("https://slashdot.org/")
         # time.sleep(5)
@@ -89,88 +78,7 @@ def scrape_slashdot(producer):
         # print(f"Error in scrape_slashdot: {e}")
         pass
 
-
-def scrape_producthunt(producer):
-    print("Scraping Product Hunt")
-    def scrape_base_page(url):
-        try:
-            
-            response = requests.get(url)
-            response.raise_for_status() 
-
-            # Parse the HTML content of the page with BeautifulSoup
-            soup = BeautifulSoup(response.text, 'html.parser')
-        except requests.RequestException as e:
-            # print(f"Failed to retrieve data from {url}: {e}")
-            return []
-        collected_hrefs = []
-
        
-        divs = soup.find_all('div', class_='styles_item__Dk_nz my-2 flex flex-1 flex-row gap-2 py-2 sm:gap-4')
-        for div in divs:
-            # Find all anchor tags within each div
-            anchor_tags = div.find_all('a')
-            for a in anchor_tags:
-                href = a.get('href')  # Get the href attribute
-                if href and '/posts/' in href:
-                    full_url = urljoin(url, href)
-                    collected_hrefs.append(full_url)
-
-        return collected_hrefs
-
-    def extract_additional_data(post_urls):
-        base_url = 'https://www.producthunt.com'
-        posts_data = []
-        counter = Counter(post_urls)
-
-    
-        new_post_urls = []
-        for url in post_urls:
-            if counter[url] > 1:
-                counter[url] -= 1
-            else:
-                new_post_urls.append(url)
-
-        post_urls = new_post_urls
-
-        for url in post_urls:
-            try:
-                post_response = requests.get(url)
-                post_response.raise_for_status()
-                
-                
-                post_soup = BeautifulSoup(post_response.text, 'html.parser')
-                
-              
-                post_h1 = post_soup.find('h1').text if post_soup.find('h1') else "No H1 tag found"
-                
-                target_divs = post_soup.find_all('div', class_='styles_htmlText__eYPgj text-16 font-normal text-dark-grey')
-                div_text = ' '.join(div.text for div in target_divs)
-                
-            
-                data = {'url': url, 'name': post_h1, 'description': div_text}
-                
-                # Send the data to Kafka
-                producer.send('Software', value=data)
-            except requests.RequestException as e:
-                # print(f"Failed to retrieve or process data from {url}: {e}")
-                continue  
-
-            posts_data.append(data)
-
-        return posts_data
-
-    
-    base_url = 'https://www.producthunt.com/all'
-
-   
-    post_hrefs = scrape_base_page(base_url)
-
-   
-    posts_info = extract_additional_data(post_hrefs)
-       
-
-
 def scrape_twitter(producer):
     print("Scraping Twitter")
     """Function to log into Twitter and scrape tweets based on a hashtag."""
@@ -228,6 +136,94 @@ def scrape_twitter(producer):
         driver.quit()
 
 
+def scrape_techpoint(producer):
+
+    print("Scraping Techpoint Africa")
+    def news_producer(url_queue):
+        driver = setup_webdriver()
+        driver.maximize_window()
+        main_url = 'https://techpoint.africa/'
+        driver.get(main_url)
+        wait = WebDriverWait(driver, 10)
+        attempts = 0
+        max_attempts = 3
+
+        try:
+            while True:
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                time.sleep(3)  # Allow time for page to load and "Load More" button to appear
+                article_links = driver.find_elements(By.CSS_SELECTOR, "div.ct-div-block a.post-excerpt")
+                for link in article_links:
+                    href = link.get_attribute('href')
+                    if href:
+                        url_queue.put(href)  # Add the URL to the queue
+
+                try:
+                    attempts = 0 
+                    load_more_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Load More')]")))
+                    driver.execute_script("arguments[0].scrollIntoView();", load_more_button)
+                    load_more_button.click()
+                     # Reset attempts after a successful click
+                    time.sleep(3)  # Allow time for new content to load
+                except Exception as e:
+                    attempts += 1
+                    # print(f"Attempt {attempts}: Failed to find 'Load More' button oin techpoint. Trying again...")
+                    if attempts >= max_attempts:
+                        print("No more 'Load More' button found after multiple attempts. Ending production.")
+                        break
+                    time.sleep(3)  # Wait before trying to find the 'Load More' button again
+        finally:
+            driver.quit()
+            url_queue.put(None)  # Signal that no more URLs will be produced
+
+    def consumer(url_queue):
+        processed_urls = set()
+        while True:
+            url = url_queue.get()
+            if url is None:
+                url_queue.task_done()
+                break  # If None is fetched, no more URLs to process
+            if url not in processed_urls:
+                try:
+                    response = requests.get(url)
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    ct_div_blocks = soup.find_all('div', class_='ct-div-block')
+                    data_list = []
+                    h1s = soup.find_all('h1')  # Fetching all h1 tags
+                    for h1 in h1s:
+                        data_list.append(h1.text.strip())  # Adding h1 text to the data list
+                    for block in ct_div_blocks:
+                        ps = block.find_all('p')
+                        uls = block.find_all('ul')
+                        for p in ps:
+                            if "Next" not in p.text and "Previous" not in p.text:
+                                data_list.append(p.text.strip())
+                        for ul in uls:
+                            lis = ul.find_all('li')
+                            for li in lis:
+                                if "Next" not in li.text and "Previous" not in li.text:
+                                    data_list.append(li.text.strip())
+                    data_string = " ".join(data_list)  # Combine list items into one string
+                  
+                    producer.send('news', data_string)
+                    processed_urls.add(url)
+                except requests.RequestException as e:
+                    # print(f"Failed to retrieve {url}: {str(e)}")
+                    continue
+                url_queue.task_done()
+
+
+
+    url_queue = Queue(maxsize=50)  # Limit queue size if memory management is a concern
+    producer_thread = threading.Thread(target=news_producer, args=(url_queue,))
+    consumer_thread = threading.Thread(target=consumer, args=(url_queue,))
+    
+    producer_thread.start()
+    consumer_thread.start()
+    
+    producer_thread.join()
+    url_queue.join()  
+    consumer_thread.join()
 
 def run_safe(func, *args):
     try:
@@ -242,20 +238,19 @@ def main():
     # Initialize and start threads
 
     thread1 = Thread(target=run_safe, args=(scrape_slashdot, producer))
-    thread2 = Thread(target=run_safe, args=(scrape_producthunt, producer))
-    thread3 = Thread(target=run_safe, args=(scrape_twitter, producer))
-
+    thread2 = Thread(target=run_safe, args=(scrape_twitter, producer))
+    thread3 = Thread(target=run_safe, args=(scrape_techpoint, producer))
     
     thread1.start()
     thread2.start()
     thread3.start()
-   
+
 
     # Wait for both threads to complete
     thread1.join()
     thread2.join()
     thread3.join()
-
+   
 
     producer.close()
 
