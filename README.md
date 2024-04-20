@@ -24,7 +24,7 @@ This project automates the listing of B2B software products , ensuring that new 
 - **Web Scraping:** BeautifulSoup, Selenium
 - **Data Streaming:** Apache Kafka
 - **Data Storage and Management:** MongoDB, Docker, Kubernetes
-- **APIs and Advanced Processing:** G2 API, Large Language Models (LLMs)
+- **APIs and Advanced Processing:** Large Language Models (LLMs)
 
 ## System Design
 ![image](https://github.com/nandishns/DBT_Project/assets/92267208/c821512f-2577-43f3-960e-52a5238305e9)
