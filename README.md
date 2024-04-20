@@ -87,8 +87,16 @@ docker build -t twitter-consumer .
 # run the image
 docker run --network="host" twitter-consumer
 ```
+## .env file
 
-`
+```bash  
+# .env file
+MONGO_CONN_STRING=
+TWITTER_USER_NAME=
+TWITTER_PASSWORD=
+#Gemini API KEY
+GOOGLE_API_KEY=
+```
 
 
 ## mongodb atlas clustor
