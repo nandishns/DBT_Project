@@ -75,16 +75,27 @@ docker run --network="host" scrape-products
 
 ```bash
 # Build the product consumer
-# Go to the respective directory
-cd TwitterLLM
+docker build -t software-consumer .
+# run the image
+docker run --network="host" software-consumer
+```
+
+```bash
+# Build the product consumer
 docker build -t twitter-consumer .
 # run the image
 docker run --network="host" twitter-consumer
 ```
-## .env file
 
+```bash
+# Build the product consumer
+docker build -t news-consumer .
+# run the image
+docker run --network="host" news-consumer
+```
+
+## .env file
 ```bash  
-# .env file
 MONGO_CONN_STRING=
 TWITTER_USER_NAME=
 TWITTER_PASSWORD=
