@@ -1,7 +1,5 @@
 # DBT Mini Project
-
-## Team Name : 
-
+ 
 ### Team Members : Nandish N S, Ritvik ...
 
 
