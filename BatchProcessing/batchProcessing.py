@@ -10,6 +10,7 @@ load_dotenv()
 MONGO_CONN_STRING = getenv("MONGO_CONN_STRING")
 GOOGLE_TOKEN = getenv("GOOGLE_API_KEY")
 genai.configure(api_key=GOOGLE_TOKEN)
+
 mongo_client = MongoClient(MONGO_CONN_STRING)
 db = mongo_client.g2hack
 unprocessed_products_collection = db.unprocessedCollection
