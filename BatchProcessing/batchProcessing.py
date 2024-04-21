@@ -1,27 +1,20 @@
-import requests
+from pymongo import MongoClient
+from datetime import datetime, timedelta
+from os import getenv
+import google.generativeai as genai
 import json
 from dotenv import load_dotenv
-from os import getenv
-from pymongo import MongoClient
-from datetime import datetime
-import google.generativeai as genai
-from concurrent.futures import ThreadPoolExecutor
-from kafka import KafkaConsumer
 
-# Load environment variables
 load_dotenv()
-# API_TOKEN = getenv("G2_API_KEY")
 MONGO_CONN_STRING = getenv("MONGO_CONN_STRING")
 GOOGLE_TOKEN = getenv("GOOGLE_API_KEY")
-
-# Configure Google Generative AI
-genai.configure(api_key=GOOGLE_TOKEN)
-
-# MongoDB setup
+print(GOOGLE_TOKEN)
 mongo_client = MongoClient(MONGO_CONN_STRING)
 db = mongo_client.g2hack
-products_collection = db.unavailableProducts
 unprocessed_products_collection = db.unprocessedCollection
+batchprocessed_products_collection = db.batchwiseProcessedCollection
+
+
 
 def check_mongo_connection():
     """ Checks MongoDB connection. """
@@ -64,35 +57,55 @@ def process_product_info(message_data):
         try:
             products = json.loads(clean_json)
             print("Products:", products)
+            document={"productName" : products.get("Product Name"),"status":products.get("Status")}
+            batchprocessed_products_collection.insert_one(document)
+            print("product saved")
             # for product in products:
             #     process_individual_product(product)
         except json.JSONDecodeError as e:
             # print(f"Failed to decode JSON: {str(e)}")
             pass
 
-def process_individual_product(product):
-    """ Processes each individual product entry. """
-    status = product.get("Status")
-    product_name = product.get('Product Name')
-    if status == "New Product":
-        print(f"Processing new product: {product_name}")
+
+
+
+
+
+def get_unprocessed_data(start_of_day,end_of_day):
+    query = {
+        "timestamp": {
+            "$gte": start_of_day,
+            "$lt": end_of_day
+        }
+    }
+    pipeline = [
+        {"$match": query},
+        {"$group": {
+            "_id": "$product_name",
+        }},
+        {"$sort": {"_id": 1}}  # Sort by product name
+    ]
+    results = unprocessed_products_collection.aggregate(pipeline)
+    products = [{"feed": result.get("feed")} for result in results]
+    return products
+
+def batchwise_processing(products):
+    for product in products:
+        process_product_info(product)
+
+
+
+
 
 
 def main():
-    """ Main function to setup Kafka consumer and process messages. """
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    start_of_day = today
+    end_of_day = today + timedelta(days=1)
     check_mongo_connection()
-    print("Setting up Kafka consumer")
-    consumer = KafkaConsumer(
-        'x-llm',
-        bootstrap_servers=['localhost:9092'],
-        auto_offset_reset='earliest',
-        enable_auto_commit=True,
-        group_id='my-group',
-    )
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        for message in consumer:
-            # print(f"Received message: {message.value.decode('utf-8')}")
-            executor.submit(process_product_info, message.value.decode('utf-8'))
-            unprocessed_products_collection.insert_one({"feed":message.value.decode("utf-8"),"timestamp":datetime.now()})
+    products = get_unprocessed_data(start_of_day,end_of_day)
+    batchwise_processing(products)
+
+
 if __name__ == "__main__":
     main()
