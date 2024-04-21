@@ -75,6 +75,11 @@ def process_individual_product(product):
     product_name = product.get('Product Name')
     if status == "New Product":
         print(f"Processing new product: {product_name}")
+        document = {
+                "product_name": product_name,
+                "timestamp": datetime.now(),
+            }
+        products_collection.insert_one(document)
 
 
 def main():

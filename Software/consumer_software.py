@@ -31,6 +31,12 @@ def process_message(message_data):
     desc = message_data.get('description')
     if product_name:
         print(f"Product Name: {product_name}, Description: {desc}")
+        document = {
+                "product_name": product_name,
+                "timestamp": datetime.now(),
+                "desc": message_data.get('description'),
+            }
+        unavailable_products_collection.insert_one(document)
 
 def main():
     ping_mongo()
