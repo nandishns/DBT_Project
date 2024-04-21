@@ -120,6 +120,13 @@ TWITTER_PASSWORD=
 GOOGLE_API_KEY=
 ```
 
+## Reference
+
+https://hub.docker.com/r/bitnami/spark/
+https://hub.docker.com/r/confluentinc/cp-kafka
+https://hub.docker.com/layers/confluentinc/cp-zookeeper/
+
+
 
 ## mongodb atlas clustor
 ![image](https://github.com/Manoj-2702/G2Hack_TryCatchDevs/assets/92267208/a5e87fd9-2b8c-4b7d-a45e-50089ddbfaca)
