@@ -1,3 +1,4 @@
+import time
 from pymongo import MongoClient
 import datetime
 from os import getenv
@@ -51,11 +52,13 @@ def process_product_info(message_data):
     print("Processing message")
     response_text = fetch_products_from_google(message_data)
     if response_text:
-        clean_json = response_text.lstrip("```json").lstrip("```JSON").rstrip("```").strip()
+        clean_json = response_text.lstrip("```json").lstrip("```JSON").rstrip("```").strip().lstrip("[").rstrip("]")
         print(clean_json, "JSON Response")
         try:
             products = json.loads(clean_json)
+
             print("Products:", products)
+           
             document={"productName" : products.get("Product Name"," "),"status":products.get("Status", " ")}
             batchprocessed_products_collection.insert_one(document)
             print("product saved")
@@ -79,18 +82,26 @@ def get_unprocessed_data(start_of_day, end_of_day):
 
 def batchwise_processing(products):
     for product in products:
-        process_product_info(products)
+        process_product_info(product)
 
 
 def main():
+    
     input_date = datetime.date.today()
     start_of_day = datetime.datetime(input_date.year, input_date.month, input_date.day)
     end_of_day = start_of_day + datetime.timedelta(days=1)
     check_mongo_connection()
     products = get_unprocessed_data(start_of_day,end_of_day)
     # print(products)
+    start_time = time.time() 
     batchwise_processing(products)
+    end_time = time.time()
+    total_time = end_time - start_time
+    print(f"Total execution time: {total_time:.2f} seconds")
 
 
 if __name__ == "__main__":
+    
     main()
+    
+
