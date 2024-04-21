@@ -17,4 +17,4 @@ COPY . /app
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Run the application
-CMD ["python", "./backup.py"]
+CMD ["python", "./consumer_soft.py"]

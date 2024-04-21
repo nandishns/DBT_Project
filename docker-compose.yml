@@ -33,7 +33,7 @@ services:
       - "8080:8080"  # Spark Master UI
       - "4040:4040"  # Spark Application UI
     volumes:
-      - A:\6th sem\dbt\miniproject\DBT_Project\Software:/opt/application
+      - C:/Users/Nandish/OneDrive/Desktop/DBT_Project/Software:/opt/application
     environment:
       SPARK_MODE: master
       SPARK_RPC_AUTHENTICATION_ENABLED: "no"
