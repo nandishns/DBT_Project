@@ -76,13 +76,18 @@ def get_unprocessed_data(start_of_day, end_of_day):
             "$lt": end_of_day
         }
     }
-    results = unprocessed_products_collection.find(query, {"feed": 1, "_id": 0})
+    results = unprocessed_products_collection.find(query, {"feed": 1, "_id": 0}).limit(50)
     feeds = [result["feed"] for result in results if "feed" in result]
     return feeds
 
 
 def batchwise_processing(products):
+    count = 0
     for product in products:
+        
+        print("----------------------------------------"+str(count)+"-------------------------------------")
+        count+=1
+
         process_product_info(product)
 
 
@@ -96,6 +101,7 @@ def main():
     # print(products)
     start_time = time.time() 
     batchwise_processing(products)
+    
     end_time = time.time()
     total_time = end_time - start_time
     print(f"Total execution time: {total_time:.2f} seconds")
