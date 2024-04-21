@@ -9,7 +9,6 @@ load_dotenv()
 MONGO_CONN_STRING = getenv("MONGO_CONN_STRING")
 GOOGLE_TOKEN = getenv("GOOGLE_API_KEY")
 genai.configure(api_key=GOOGLE_TOKEN)
-print(GOOGLE_TOKEN)
 mongo_client = MongoClient(MONGO_CONN_STRING)
 db = mongo_client.g2hack
 unprocessed_products_collection = db.unprocessedCollection
@@ -57,7 +56,7 @@ def process_product_info(message_data):
         try:
             products = json.loads(clean_json)
             print("Products:", products)
-            document={"productName" : products.get("Product Name"),"status":products.get("Status")}
+            document={"productName" : products.get("Product Name"," "),"status":products.get("Status", " ")}
             batchprocessed_products_collection.insert_one(document)
             print("product saved")
             # for product in products:
@@ -80,7 +79,7 @@ def get_unprocessed_data(start_of_day, end_of_day):
 
 def batchwise_processing(products):
     for product in products:
-        process_product_info(products[0])
+        process_product_info(products)
 
 
 def main():
