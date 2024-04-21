@@ -1,5 +1,5 @@
 from pymongo import MongoClient
-from datetime import datetime, timedelta
+import datetime
 from os import getenv
 import google.generativeai as genai
 import json
@@ -66,44 +66,30 @@ def process_product_info(message_data):
             # print(f"Failed to decode JSON: {str(e)}")
             pass
 
-
-
-
-
-
-def get_unprocessed_data(start_of_day,end_of_day):
+def get_unprocessed_data(start_of_day, end_of_day):
     query = {
         "timestamp": {
             "$gte": start_of_day,
             "$lt": end_of_day
         }
     }
-    pipeline = [
-        {"$match": query},
-        {"$group": {
-            "_id": "$product_name",
-        }},
-        {"$sort": {"_id": 1}}  # Sort by product name
-    ]
-    results = unprocessed_products_collection.aggregate(pipeline)
-    products = [{"feed": result.get("feed")} for result in results]
-    return products
+    results = unprocessed_products_collection.find(query, {"feed": 1, "_id": 0})
+    feeds = [result["feed"] for result in results if "feed" in result]
+    return feeds
+
 
 def batchwise_processing(products):
     for product in products:
         process_product_info(product)
 
 
-
-
-
-
 def main():
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    start_of_day = today
-    end_of_day = today + timedelta(days=1)
+    input_date = datetime.date.today()
+    start_of_day = datetime.datetime(input_date.year, input_date.month, input_date.day)
+    end_of_day = start_of_day + datetime.timedelta(days=1)
     check_mongo_connection()
     products = get_unprocessed_data(start_of_day,end_of_day)
+    # print(products)
     batchwise_processing(products)
 
 
