@@ -22,7 +22,7 @@ This project automates the listing of B2B software products , ensuring that new 
 ## Technology Stack
 
 - **Web Scraping:** BeautifulSoup, Selenium
-- **Data Streaming:** Apache Kafka
+- **Data Streaming:** Apache Kafka, Spark
 - **Data Storage and Management:** MongoDB, Docker, Kubernetes
 - **APIs and Advanced Processing:** Large Language Models (LLMs)
 
