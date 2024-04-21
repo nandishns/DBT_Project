@@ -62,6 +62,23 @@ shutdown the kafka and zookeeper
 # stop zookeeper and kafka
  docker-compose down
 ```
+## Spark Setup
+```bash
+# pull spark image
+ docker pull apache/spark
+
+# start spark
+docker exec -it spark /bin/bash
+pip install python-dotenv pymongo pip install pydantic_core pyspark
+```
+
+# start master
+```bash
+spark-submit \
+  --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.2.1 \
+  --master spark://localhost:7077 \
+  /opt/application/consumer_software.py
+```
 
 ## run scrapper
 
