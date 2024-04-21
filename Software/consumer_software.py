@@ -1,75 +1,71 @@
-from kafka import KafkaConsumer
-from concurrent.futures import ThreadPoolExecutor
-import requests
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import expr, from_json, col, current_timestamp
+from pyspark.sql.types import StringType, StructType, StructField, TimestampType
+from datetime import datetime
 import json
 from dotenv import load_dotenv
 from os import getenv
-from pymongo import MongoClient
-from datetime import datetime
-import time
 
 load_dotenv()
-api_token = getenv("G2_API_KEY")
 mongo_conn_string = getenv("MONGO_CONN_STRING")
 
-# Setup MongoDB connection
-client = MongoClient(mongo_conn_string)
-db = client.g2hack
-unavailable_products_collection = db.unavailableProducts
+def create_spark_session():
+    print("Creating Spark session")
+    spark = SparkSession \
+        .builder \
+        .appName("KafkaToMongoDBWithSpark") \
+        .config("spark.mongodb.output.uri", mongo_conn_string + "/g2hack.unavailableProducts") \
+        .config("spark.jars.packages", "org.mongodb.spark:mongo-spark-connector_2.12:3.0.1") \
+        .master("spark://986bff55b4d4:7077") \
+        .getOrCreate()
+    return spark
 
-def ping_mongo():
-    try:
-        client.server_info()
-        print("Connected to MongoDB")
-    except:
-        print("Failed to connect to MongoDB")
-
-
-
-def process_message(message_data):
-    product_name = message_data.get('name')
-    desc = message_data.get('description')
-    if product_name:
-        print(f"Product Name: {product_name}, Description: {desc}")
-        document = {
-                "product_name": product_name,
-                "timestamp": datetime.now(),
-                "desc": message_data.get('description'),
-            }
-        unavailable_products_collection.insert_one(document)
 def main():
-    ping_mongo()  # Check MongoDB connection
-    print("Setting up Kafka consumer")
-    consumer = KafkaConsumer(
-        'Software',
-        bootstrap_servers=['localhost:9092'],
-        auto_offset_reset='earliest',
-        enable_auto_commit=True,
-        group_id='my-group',
-        value_deserializer=lambda x: json.loads(x.decode('utf-8'))
-    )
+    spark = create_spark_session()
+    
+    # Schema for Kafka data
+    schema = StructType([
+        StructField("name", StringType(), True),
+        StructField("description", StringType(), True)
+    ])
+    print("Schema created")
 
-    message_accumulator = []
-    start_time = time.time()
-    time_window = 10  # Time window set to 10 seconds
+    # Create DataFrame representing the stream of input from Kafka
+    df = spark \
+        .readStream \
+        .format("kafka") \
+        .option("kafka.bootstrap.servers", "localhost:9092") \
+        .option("subscribe", "Software") \
+        .option("startingOffsets", "earliest") \
+        .load() \
+        .selectExpr("CAST(value AS STRING) as json")
 
-    try:
-        for message in consumer:
-            message_accumulator.append(message.value)
+    # Apply schema and add timestamp
+    df = df.select(from_json(col("json"), schema).alias("data")).select("data.*")
+    df = df.withColumn("timestamp", current_timestamp())
 
-            # Check if the time window has elapsed
-            if time.time() - start_time >= time_window:
-                # Process all accumulated messages concurrently
-                with ThreadPoolExecutor(max_workers=10) as executor:
-                    for msg in message_accumulator:
-                        executor.submit(process_message, msg)
+    # Windowed aggregation to count messages per 10 second window
+    windowedCounts = df.groupBy(
+        expr("window(timestamp, '10 seconds')")
+    ).count()
 
-                # Reset the accumulator and the timer
-                message_accumulator = []
-                start_time = time.time()
+    # Write the counts to the console for debugging
+    query_count = windowedCounts.writeStream \
+        .outputMode("complete") \
+        .format("console") \
+        .option("truncate", "false") \
+        .start()
 
-    except Exception as e:
-        print("Error during message processing:", e)
+    # Write detailed records to MongoDB
+    query_data = df.writeStream \
+        .outputMode("append") \
+        .foreachBatch(lambda batch_df, batch_id: batch_df.write.format("mongo").mode("append").save()) \
+        .start()
+
+    query_count.awaitTermination()
+    query_data.awaitTermination()
+
+    print("Execution complete", datetime.now())
 
 if __name__ == "__main__":
     main()
