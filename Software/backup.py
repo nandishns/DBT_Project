@@ -25,7 +25,6 @@ def ping_mongo():
         print("Failed to connect to MongoDB")
 
 
-
 def process_message(message_data):
     product_name = message_data.get('name')
     desc = message_data.get('description')
