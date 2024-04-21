@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from os import getenv
 from pymongo import MongoClient
 from datetime import datetime
-
+import time
 
 load_dotenv()
 api_token = getenv("G2_API_KEY")
@@ -37,9 +37,8 @@ def process_message(message_data):
                 "desc": message_data.get('description'),
             }
         unavailable_products_collection.insert_one(document)
-
 def main():
-    ping_mongo()
+    ping_mongo()  # Check MongoDB connection
     print("Setting up Kafka consumer")
     consumer = KafkaConsumer(
         'Software',
@@ -47,12 +46,30 @@ def main():
         auto_offset_reset='earliest',
         enable_auto_commit=True,
         group_id='my-group',
-        value_deserializer=lambda x: json.loads(x.decode('utf-8')))
+        value_deserializer=lambda x: json.loads(x.decode('utf-8'))
+    )
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    message_accumulator = []
+    start_time = time.time()
+    time_window = 10  # Time window set to 10 seconds
+
+    try:
         for message in consumer:
-            data = message.value
-            executor.submit(process_message, data)
+            message_accumulator.append(message.value)
+
+            # Check if the time window has elapsed
+            if time.time() - start_time >= time_window:
+                # Process all accumulated messages concurrently
+                with ThreadPoolExecutor(max_workers=10) as executor:
+                    for msg in message_accumulator:
+                        executor.submit(process_message, msg)
+
+                # Reset the accumulator and the timer
+                message_accumulator = []
+                start_time = time.time()
+
+    except Exception as e:
+        print("Error during message processing:", e)
 
 if __name__ == "__main__":
     main()

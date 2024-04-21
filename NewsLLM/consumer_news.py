@@ -21,6 +21,7 @@ genai.configure(api_key=GOOGLE_TOKEN)
 mongo_client = MongoClient(MONGO_CONN_STRING)
 db = mongo_client.g2hack
 products_collection = db.unavailableProducts
+unprocessed_products_collection = db.unprocessedCollection
 
 def check_mongo_connection():
     """ Checks MongoDB connection. """
@@ -66,12 +67,19 @@ def process_individual_product(product):
     if status == "New Product":
         print(f"Processing new product: {product_name}")
         # handle_new_product(product_name)
-
+import time
+from kafka import KafkaConsumer
+from pymongo import MongoClient
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 
 def main():
-    """ Main function to setup Kafka consumer and process messages. """
-    check_mongo_connection()
-    print("Setting up Kafka consumer")
+    """ Main function to setup Kafka consumer and process messages in 10-second batches. """
+    # MongoDB connection and Kafka configuration
+    mongo_client = MongoClient(MONGO_CONN_STRING)
+    db = mongo_client.g2hack
+    unprocessed_products_collection = db.unprocessedCollection
+
     consumer = KafkaConsumer(
         'news',
         bootstrap_servers=['localhost:9092'],
@@ -79,10 +87,32 @@ def main():
         enable_auto_commit=True,
         group_id='my_group',
     )
-    with ThreadPoolExecutor(max_workers=1) as executor:
+
+    message_accumulator = []
+    start_time = time.time()
+    time_window = 10  # Set the time window for batch processing
+
+    try:
         for message in consumer:
-            # print(f"Received message: {message.value.decode('utf-8')}")
-            executor.submit(process_product_info, message.value.decode('utf-8'))
+            decoded_message = message.value.decode('utf-8')
+            message_accumulator.append(decoded_message)
+
+            # Check if the time window has elapsed
+            if time.time() - start_time >= time_window:
+                # Process messages in bulk using a thread pool
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    for msg in message_accumulator:
+                        executor.submit(process_product_info, msg)  # Process each message
+                        preprocessed = msg.replace("\n", " ")
+                        unprocessed_products_collection.insert_one({"feed": preprocessed, "timestamp": datetime.now()})
+
+                message_accumulator = []  # Clear the message accumulator for the next batch
+                start_time = time.time()  # Reset the start time for the new batch
+
+    except Exception as e:
+        print("Error during message processing:", e)
 
 if __name__ == "__main__":
     main()
+
+

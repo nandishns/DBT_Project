@@ -7,6 +7,7 @@ from datetime import datetime
 import google.generativeai as genai
 from concurrent.futures import ThreadPoolExecutor
 from kafka import KafkaConsumer
+import time
 
 # Load environment variables
 load_dotenv()
@@ -94,10 +95,31 @@ def main():
         enable_auto_commit=True,
         group_id='my-group',
     )
-    with ThreadPoolExecutor(max_workers=1) as executor:
+
+    message_accumulator = []
+    start_time = time.time()
+    time_window = 10  # Process data every 10 seconds
+
+    try:
         for message in consumer:
-            # print(f"Received message: {message.value.decode('utf-8')}")
-            executor.submit(process_product_info, message.value.decode('utf-8'))
-            unprocessed_products_collection.insert_one({"feed":message.value.decode("utf-8"),"timestamp":datetime.now()})
+            decoded_message = message.value.decode('utf-8')
+            message_accumulator.append(decoded_message)
+            current_time = time.time()
+            
+            # Check if 10 seconds have elapsed
+            if current_time - start_time >= time_window:
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    for msg in message_accumulator:
+                        executor.submit(process_product_info, msg)
+                        preprocessed = msg.replace("\n", " ")
+                        unprocessed_products_collection.insert_one({"feed": preprocessed, "timestamp": datetime.now()})
+                
+                # Reset the accumulator and timer
+                message_accumulator = []
+                start_time = time.time()
+
+    except Exception as e:
+        print("Error during message processing:", e)
+
 if __name__ == "__main__":
     main()
