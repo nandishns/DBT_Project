@@ -9,6 +9,7 @@ load_dotenv()
 MONGO_CONN_STRING = getenv("MONGO_CONN_STRING")
 GOOGLE_TOKEN = getenv("GOOGLE_API_KEY")
 genai.configure(api_key=GOOGLE_TOKEN)
+
 mongo_client = MongoClient(MONGO_CONN_STRING)
 db = mongo_client.g2hack
 unprocessed_products_collection = db.unprocessedCollection
@@ -79,7 +80,7 @@ def get_unprocessed_data(start_of_day, end_of_day):
 
 def batchwise_processing(products):
     for product in products:
-        process_product_info(products)
+        process_product_info(product)
 
 
 def main():
