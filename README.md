@@ -27,7 +27,8 @@ This project automates the listing of B2B software products , ensuring that new 
 - **APIs and Advanced Processing:** Large Language Models (LLMs)
 
 ## System Design
-![image](https://github.com/nandishns/DBT_Project/assets/92267208/c821512f-2577-43f3-960e-52a5238305e9)
+![image](https://github.com/nandishns/DBT_Project/assets/92267208/a9e85184-4b6f-4ef2-b71a-0fe425577ac4)
+
 
 ### Data Streaming
 
